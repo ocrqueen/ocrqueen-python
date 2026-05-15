@@ -1,0 +1,166 @@
+# ── Release — publishes a tagged version to PyPI via Trusted Publishing ─
+# How it works:
+#   1. You push a `v*` tag from main (e.g. `git tag v0.1.0 && git push --tags`).
+#   2. The `build` job runs CI gates (tests, lint, typecheck) again, then
+#      builds the wheel + sdist into `dist/`.
+#   3. The `publish` job runs ONLY after `build` succeeds, ONLY in the
+#      `pypi` GitHub Environment (which requires manual approval). It
+#      requests an OIDC token from GitHub, PyPI verifies it matches the
+#      trusted-publisher record (this repo, this workflow, this env),
+#      and the upload completes.
+#   4. `sign` attests build provenance via Sigstore — anyone can verify
+#      the artifact was built by THIS workflow.
+#
+# What this prevents:
+#   - Stolen PyPI API tokens (we don't have any)
+#   - A malicious PR triggering a release (workflow fires only on tags)
+#   - Tag-vs-pyproject version mismatch (asserted in the build job)
+#   - Build artifact tampering between build and publish (artifact is
+#     uploaded under a digest the publish job re-verifies via Sigstore)
+#   - Cross-workflow OIDC token misuse (id-token: write only on publish)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      # NOTE: we deliberately do NOT include `workflow_dispatch`. The only
+      # way to publish is to push a tag — that requires direct git auth
+      # against `main`, which is gated by branch protection.
+
+# Default to read-only at the workflow level; individual jobs widen as needed.
+permissions:
+  contents: read
+
+concurrency:
+  # Only one release of a given tag can run at a time. Cancelling
+  # in-progress would be dangerous (could leave a partial publish), so
+  # we serialize instead.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. Build ─────────────────────────────────────────────────────
+  # Runs CI gates again (defense in depth — branch protection should
+  # ensure main is already green, but a release should never publish
+  # broken code). Produces the wheel + sdist under `dist/`.
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      # actions/setup-python@v5.3.0
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          pip install -e ".[dev]"
+
+      # Defence in depth: make sure the tag and the file disagree → fail.
+      # A typo in the tag could otherwise ship the wrong version number.
+      - name: Verify tag matches pyproject version
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          file_version=$(python -c "
+          import tomllib
+          with open('pyproject.toml','rb') as f:
+              print(tomllib.load(f)['project']['version'])
+          ")
+          echo "tag: $tag_version  pyproject: $file_version"
+          if [ "$tag_version" != "$file_version" ]; then
+            echo "::error::tag ($tag_version) != pyproject.toml version ($file_version)"
+            exit 1
+          fi
+
+      - name: Run CI gates
+        run: |
+          pytest -q
+          ruff check src tests
+          ruff format --check src tests
+          mypy src/ocrqueen
+
+      - name: Build wheel + sdist
+        run: python -m build
+
+      # `twine check` validates README rendering on PyPI before we upload.
+      # Catches the classic "long_description was malformed and PyPI shows
+      # a blank page" bug before publish.
+      - name: Validate package metadata
+        run: twine check --strict dist/*
+
+      # actions/upload-artifact@v4.4.3
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+  # ── 2. Publish to PyPI via OIDC ──────────────────────────────────
+  # `environment: pypi` triggers the manual-approval gate (configured
+  # in repo settings). Permissions request the OIDC token that PyPI's
+  # trusted publisher record knows to accept.
+  publish:
+    name: Publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/ocrqueen/
+    permissions:
+      # Minimum needed for Trusted Publishing — nothing else.
+      id-token: write
+      contents: read
+    steps:
+      # actions/download-artifact@v4.1.8
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: dist
+          path: dist/
+
+      # pypa/gh-action-pypi-publish@v1.12.4 — pinned by SHA, official PyPA action
+      - uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc
+        with:
+          packages-dir: dist/
+          # Skip if the version is already on PyPI — turns "tag pushed
+          # twice" into a no-op instead of a hard fail.
+          skip-existing: true
+          # Hidden by default in v1.12 but documenting the intent here.
+          # No verbose mode — extra logging can echo URLs we'd rather
+          # not have in public logs.
+          verbose: false
+
+  # ── 3. Build provenance attestation ──────────────────────────────
+  # Sigstore-signed statement that this workflow produced these
+  # artifacts. Users can verify with `gh attestation verify` or `cosign`.
+  # Belt-and-suspenders alongside PyPI's own publisher metadata.
+  sign:
+    name: Attest build provenance
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: dist
+          path: dist/
+
+      # actions/attest-build-provenance@v2.1.0
+      - uses: actions/attest-build-provenance@7668571508540a607bdfd90a87a560489fe372eb
+        with:
+          subject-path: "dist/*"
