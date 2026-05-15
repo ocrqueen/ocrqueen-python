@@ -38,6 +38,7 @@ def test_no_accidental_private_reexports() -> None:
     Python-language artifact, not real public API.
     """
     import inspect
+    import types
 
     import ocrqueen
 
@@ -47,9 +48,13 @@ def test_no_accidental_private_reexports() -> None:
         if name.startswith("_"):
             continue
         value = getattr(ocrqueen, name)
+        # Submodules (`ocrqueen.resources`, etc.) are inherently
+        # importable in Python — accept them as organizational, not as
+        # leaked API surface. We only check NAMED entities (classes,
+        # functions, constants) against `__all__`.
+        if isinstance(value, types.ModuleType):
+            continue
         origin = inspect.getmodule(value)
-        # Only flag names that originate inside the ocrqueen namespace.
-        # Future-flags, std-lib re-exports, etc. live elsewhere.
         if origin is None or not origin.__name__.startswith("ocrqueen"):
             continue
         if name not in declared:
