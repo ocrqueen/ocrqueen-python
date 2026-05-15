@@ -73,9 +73,7 @@ def test_tls_verification_is_enabled_by_default() -> None:
 
 def test_auth_header_set_on_every_request() -> None:
     with respx.mock(base_url=DEFAULT_BASE_URL) as mock:
-        route = mock.get("/v1/ping").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
+        route = mock.get("/v1/ping").mock(return_value=httpx.Response(200, json={"ok": True}))
         with HttpClient(api_key=_VALID_KEY) as c:
             c.request("GET", "/v1/ping")
         assert route.called
@@ -197,14 +195,10 @@ def test_api_key_legacy_test_prefix_accepted() -> None:
         (503, ServerError),
     ],
 )
-def test_error_status_maps_to_exception(
-    status_code: int, exc_type: type[Exception]
-) -> None:
+def test_error_status_maps_to_exception(status_code: int, exc_type: type[Exception]) -> None:
     with respx.mock(base_url=DEFAULT_BASE_URL) as mock:
         mock.get("/v1/x").mock(
-            return_value=httpx.Response(
-                status_code, json={"error": {"code": "X", "message": "x"}}
-            )
+            return_value=httpx.Response(status_code, json={"error": {"code": "X", "message": "x"}})
         )
         with HttpClient(api_key=_VALID_KEY) as c, pytest.raises(exc_type):
             c.request("GET", "/v1/x")
@@ -214,7 +208,8 @@ def test_rate_limit_includes_retry_after() -> None:
     with respx.mock(base_url=DEFAULT_BASE_URL) as mock:
         mock.get("/v1/x").mock(
             return_value=httpx.Response(
-                429, headers={"Retry-After": "42"},
+                429,
+                headers={"Retry-After": "42"},
                 json={"error": {"code": "RATE_LIMITED", "message": "slow down"}},
             )
         )
@@ -228,7 +223,8 @@ def test_insufficient_balance_includes_balance() -> None:
     with respx.mock(base_url=DEFAULT_BASE_URL) as mock:
         mock.get("/v1/x").mock(
             return_value=httpx.Response(
-                402, headers={"X-Wallet-Balance-Cents": "47"},
+                402,
+                headers={"X-Wallet-Balance-Cents": "47"},
                 json={"error": {"code": "INSUFFICIENT_BALANCE", "message": "no"}},
             )
         )
@@ -260,9 +256,7 @@ def test_timeout_is_wrapped() -> None:
 
 def test_user_agent_includes_sdk_version() -> None:
     with respx.mock(base_url=DEFAULT_BASE_URL) as mock:
-        route = mock.get("/v1/x").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        route = mock.get("/v1/x").mock(return_value=httpx.Response(200, json={}))
         with HttpClient(api_key=_VALID_KEY) as c:
             c.request("GET", "/v1/x")
         ua = route.calls.last.request.headers["User-Agent"]
@@ -280,9 +274,7 @@ def test_user_agent_suffix_sanitized() -> None:
     care about is that `\\r\\n` and `:` and ` ` were stripped, so the
     output cannot be parsed as multiple headers."""
     with respx.mock(base_url=DEFAULT_BASE_URL) as mock:
-        route = mock.get("/v1/x").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        route = mock.get("/v1/x").mock(return_value=httpx.Response(200, json={}))
         with HttpClient(
             api_key=_VALID_KEY,
             user_agent_suffix="myapp/1.0; injection\r\nX-Evil: y",

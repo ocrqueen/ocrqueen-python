@@ -98,9 +98,7 @@ def test_read_file_rewinds_seekable_handle() -> None:
 def test_create_sends_multipart_with_options() -> None:
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
-            return_value=httpx.Response(
-                202, json={"id": "job_abc", "status": "queued"}
-            )
+            return_value=httpx.Response(202, json={"id": "job_abc", "status": "queued"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
             job = client.extract.create(file=b"%PDF-1.4", profile="advanced")
@@ -120,14 +118,10 @@ def test_create_sends_multipart_with_options() -> None:
 def test_create_passes_idempotency_key() -> None:
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
-            return_value=httpx.Response(
-                202, json={"id": "job_abc", "status": "queued"}
-            )
+            return_value=httpx.Response(202, json={"id": "job_abc", "status": "queued"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
-            client.extract.create(
-                file=b"%PDF-1.4", idempotency_key="my-key-123"
-            )
+            client.extract.create(file=b"%PDF-1.4", idempotency_key="my-key-123")
         assert route.calls.last.request.headers["Idempotency-Key"] == "my-key-123"
 
 
@@ -137,9 +131,7 @@ def test_create_explicit_options_wins_over_profile_arg() -> None:
     wins. Document the precedence by testing it."""
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
-            return_value=httpx.Response(
-                202, json={"id": "job_abc", "status": "queued"}
-            )
+            return_value=httpx.Response(202, json={"id": "job_abc", "status": "queued"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
             client.extract.create(
@@ -165,9 +157,7 @@ def test_create_404_surfaces_as_typed_exception() -> None:
 
     with respx.mock(base_url=_API_URL) as mock:
         mock.post("/v1/extract").mock(
-            return_value=httpx.Response(
-                404, json={"error": {"code": "NOT_FOUND", "message": "x"}}
-            )
+            return_value=httpx.Response(404, json={"error": {"code": "NOT_FOUND", "message": "x"}})
         )
         with OCRQueen(api_key=_VALID_KEY) as client, pytest.raises(NotFoundError):
             client.extract.create(file=b"%PDF-1.4")

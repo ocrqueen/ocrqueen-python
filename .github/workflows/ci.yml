@@ -1,0 +1,90 @@
+# ── CI — runs on every push + every PR ────────────────────────────────
+# This is the gate every change must pass. Three jobs run in parallel:
+#   1. `test`     — pytest across the supported Python matrix
+#   2. `lint`     — ruff (includes flake8-bandit security rules)
+#   3. `typecheck`— mypy strict
+#
+# All third-party actions are pinned to a full commit SHA, not a tag.
+# Tag pins (`@v4`) can be silently replaced by an attacker who pushes
+# `v4` to a different commit; SHA pins cannot.
+# See: https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least-privilege default. Each job that needs more permissions opts in.
+permissions:
+  contents: read
+
+# Cancel in-progress runs of the same workflow on the same ref — saves
+# CI minutes without losing useful signal.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      # actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      # actions/setup-python@v5.3.0
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: ${{ matrix.python }}
+          # Cache pip wheels across runs — keyed on the lock file so a
+          # dep bump invalidates it.
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Test
+        run: pytest -q
+
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          ruff check src tests
+          ruff format --check src tests
+
+  typecheck:
+    name: typecheck (mypy strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          mypy src/ocrqueen

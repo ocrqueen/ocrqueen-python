@@ -1,0 +1,41 @@
+# ── Dependabot — auto-PRs to update vulnerable / outdated dependencies ─
+# Two ecosystems matter for this repo:
+#   1. python (runtime + dev deps in pyproject.toml)
+#   2. github-actions (action versions in workflow YAML)
+#
+# Cadence: weekly. Security updates ship immediately regardless of this
+# schedule via "Dependabot security updates" enabled at the repo level.
+
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+    # Group all minor + patch bumps into a single PR per ecosystem.
+    # Reduces review fatigue; security updates still come out separately.
+    groups:
+      python-deps:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions

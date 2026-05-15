@@ -1,0 +1,17 @@
+# ── CODEOWNERS — auto-request review on every PR ──────────────────────
+# Every file gets reviewed by @iammilankhati by default. Add more
+# maintainers below as the team grows. Branch protection enforces this
+# automatically once "Require review from Code Owners" is enabled.
+#
+# Syntax: <path-pattern>  <@reviewer>
+
+# Catch-all — every file in the repo
+*                          @iammilankhati
+
+# Security-sensitive files — call them out explicitly so future
+# co-maintainers can't reduce ownership without an explicit PR
+.github/                   @iammilankhati
+src/ocrqueen/_http.py      @iammilankhati
+src/ocrqueen/_errors.py    @iammilankhati
+SECURITY.md                @iammilankhati
+pyproject.toml             @iammilankhati

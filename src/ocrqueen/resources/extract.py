@@ -118,9 +118,7 @@ def _read_file(file: FileInput) -> tuple[str, bytes]:
             pass
     data = file.read()
     if not isinstance(data, bytes):
-        raise ValidationError(
-            "file-like object must produce bytes — open in binary mode"
-        )
+        raise ValidationError("file-like object must produce bytes — open in binary mode")
     if len(data) > _MAX_UPLOAD_BYTES:
         raise ValidationError(
             f"file is {len(data)} bytes — exceeds the {_MAX_UPLOAD_BYTES} byte limit"

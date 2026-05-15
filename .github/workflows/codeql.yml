@@ -1,0 +1,54 @@
+# ── CodeQL — static analysis for security bugs ────────────────────────
+# Runs on every push to main + every PR + a weekly cron so we still
+# notice issues when development pauses. Results show up under the
+# repo's Security tab. Free for public repos.
+#
+# Pinned actions to commit SHAs (see ci.yml comment for rationale).
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 03:17 every Monday (UTC). Off-peak so it doesn't fight CI for runners.
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed by CodeQL to write analysis results to the Security tab.
+      security-events: write
+      # Needed to read the source.
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python]
+    steps:
+      # actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      # github/codeql-action/init@v3.27.0
+      - uses: github/codeql-action/init@4f3212b61783c3c68e8309a0f18a699764811cda
+        with:
+          languages: ${{ matrix.language }}
+          # `security-and-quality` is one level above the default
+          # `security-extended` — opt in for the SDK because false-
+          # positive cost is low (we read every PR anyway) and the extra
+          # queries catch real issues like missing TLS validation.
+          queries: security-and-quality
+
+      # github/codeql-action/analyze@v3.27.0
+      - uses: github/codeql-action/analyze@4f3212b61783c3c68e8309a0f18a699764811cda
+        with:
+          category: "/language:${{ matrix.language }}"

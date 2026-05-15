@@ -114,9 +114,7 @@ class HttpClient:
         # `OCRQUEEN_BASE_URL=http://attacker.example` from working.
         parsed = urlparse(base_url)
         if parsed.scheme != "https":
-            raise ValidationError(
-                f"base_url must use https:// scheme, got {parsed.scheme!r}"
-            )
+            raise ValidationError(f"base_url must use https:// scheme, got {parsed.scheme!r}")
         if not parsed.netloc:
             raise ValidationError("base_url must include a hostname")
 
@@ -215,8 +213,7 @@ class HttpClient:
             for k in extra_headers:
                 if k.lower() in {"authorization", "host"}:
                     raise ValidationError(
-                        f"extra_headers cannot override {k!r}; "
-                        "use the SDK constructor instead"
+                        f"extra_headers cannot override {k!r}; use the SDK constructor instead"
                     )
             headers.update(extra_headers)
         if idempotency_key is not None:
@@ -326,12 +323,8 @@ class HttpClient:
                 retry_after_seconds=retry,
             )
         if sc >= 500:
-            raise ServerError(
-                message, status_code=sc, error_code=error_code, request_id=request_id
-            )
-        raise APIError(
-            message, status_code=sc, error_code=error_code, request_id=request_id
-        )
+            raise ServerError(message, status_code=sc, error_code=error_code, request_id=request_id)
+        raise APIError(message, status_code=sc, error_code=error_code, request_id=request_id)
 
     # ── repr — I4 ─────────────────────────────────────────────────────
 
