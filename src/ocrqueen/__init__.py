@@ -24,8 +24,9 @@ from ocrqueen._errors import (
     ValidationError,
 )
 from ocrqueen._version import __version__
+from ocrqueen.webhooks import verify_webhook
 
-# Sorted to satisfy RUF022 — alphabetical, dunders first.
+# Sorted to satisfy RUF022 — alphabetical, dunders last.
 __all__ = [
     "APIConnectionError",
     "APIError",
@@ -41,4 +42,5 @@ __all__ = [
     "ServerError",
     "ValidationError",
     "__version__",
+    "verify_webhook",
 ]

@@ -26,6 +26,7 @@ from ocrqueen._http import DEFAULT_BASE_URL, HttpClient
 
 if TYPE_CHECKING:
     from ocrqueen.resources.extract import ExtractResource
+    from ocrqueen.resources.jobs import JobsResource
 
 
 class OCRQueen:
@@ -77,6 +78,7 @@ class OCRQueen:
         # — users who never call `client.extract` don't pay the import
         # cost. The properties below populate on first access.
         self._extract: ExtractResource | None = None
+        self._jobs: JobsResource | None = None
 
     # ── Resources ────────────────────────────────────────────────────
 
@@ -90,6 +92,15 @@ class OCRQueen:
 
             self._extract = ExtractResource(self._http)
         return self._extract
+
+    @property
+    def jobs(self) -> JobsResource:
+        """Job lifecycle — `get`, `list`, `cancel`, `wait`."""
+        if self._jobs is None:
+            from ocrqueen.resources.jobs import JobsResource
+
+            self._jobs = JobsResource(self._http)
+        return self._jobs
 
     # ── Lifecycle ────────────────────────────────────────────────────
 
