@@ -1,0 +1,108 @@
+# ── Build system ──────────────────────────────────────────────────────
+# We use hatchling — the maintained-by-PyPA build backend. Lightweight,
+# explicit, no shell hooks (which is the attack vector behind some past
+# build-tool compromises like the colors.py incident). hatchling reads
+# this file directly; there is no `setup.py` to be tricked into running
+# arbitrary code at install time.
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+# ── Project metadata ──────────────────────────────────────────────────
+[project]
+name = "ocrqueen"
+version = "0.0.0"
+description = "Official Python SDK for the OCRQueen document extraction API"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "OCRQueen", email = "support@ocrqueen.com" }]
+maintainers = [{ name = "OCRQueen", email = "support@ocrqueen.com" }]
+keywords = ["ocr", "pdf", "document-ai", "extraction", "sdk", "ocrqueen"]
+requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+
+# Runtime deps — keep this list MINIMAL. Every package here ships with us,
+# so each one is supply-chain risk. httpx is the modern standard
+# (used by FastAPI itself), MIT-licensed, by Encode (Tom Christie). We
+# accept its transitive deps (anyio, certifi, h11, httpcore, idna, sniffio).
+dependencies = [
+  "httpx>=0.27.0,<1.0.0",
+]
+
+[project.urls]
+Homepage = "https://ocrqueen.com"
+Documentation = "https://ocrqueen.com/docs/sdks/python"
+Repository = "https://github.com/ocrqueen/ocrqueen-python"
+Issues = "https://github.com/ocrqueen/ocrqueen-python/issues"
+Changelog = "https://github.com/ocrqueen/ocrqueen-python/blob/main/CHANGELOG.md"
+
+# Optional groups — dev + test. None of these are installed by users;
+# all are pinned to lower bounds so a breaking release of a tool doesn't
+# silently destroy our CI.
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+  "respx>=0.21.0",
+  "ruff>=0.6.0",
+  "mypy>=1.10.0",
+]
+
+# ── Hatch build config ────────────────────────────────────────────────
+# Tell hatchling exactly which folder is the package. Explicit beats
+# implicit — prevents a future stray top-level module from sneaking into
+# the wheel.
+[tool.hatch.build.targets.wheel]
+packages = ["src/ocrqueen"]
+
+# ── Linting (ruff) ────────────────────────────────────────────────────
+# A small, opinionated rule set focused on correctness + security:
+#   E,F   pycodestyle + pyflakes (the basics)
+#   I     import order
+#   B     flake8-bugbear (real bugs)
+#   S     flake8-bandit (security: hard-coded creds, eval, weak hashes)
+#   UP    pyupgrade (use modern syntax)
+#   ASYNC flake8-async (don't block the event loop)
+#   RUF   ruff-specific rules
+# Tests get an exception for assert + magic numbers — those are normal there.
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "S", "UP", "ASYNC", "RUF"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]  # asserts + fake "secret" strings are fine in tests
+
+# ── Type checking (mypy) ──────────────────────────────────────────────
+# Strict mode by default — public SDK callers depend on our types being
+# right. Loose typing in a library is how `None` leaks into production.
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src/ocrqueen"]
+disallow_any_generics = true
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_reexport = true
+
+# ── pytest ────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q --strict-markers --strict-config"
