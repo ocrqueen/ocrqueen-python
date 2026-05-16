@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-16
+
+Metadata-only release. No runtime or API behaviour change.
+
+### Changed
+- Expanded `pyproject.toml` keywords from a PDF-focused set to cover every
+  supported format and use case: `pptx`, `powerpoint`, `presentation-extraction`,
+  `image-extraction`, `image-ocr`, `heic`, `pdf-to-json`, `pdf-to-markdown`,
+  `document-extraction`, `ocr-api`, `structured-extraction`, `rag`. PyPI
+  search indexes keywords, not READMEs — so even though the README
+  documented all formats since v0.2.0, searches for "PPTX extraction Python" /
+  "HEIC OCR" still missed us. Fixes that.
+
 ## [0.2.0] — 2026-05-16
 
 ### Added
