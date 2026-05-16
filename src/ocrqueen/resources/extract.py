@@ -159,9 +159,12 @@ class ExtractResource:
             profile: `"standard"` (text + layout, $0.005/page) or
                 `"advanced"` (adds diagram extraction + image
                 enhancement, $0.015/page).
-            options: Extra `ExtractOptions` fields (`callback_url`,
-                `bypass_cache`, etc.). The server is the source of
-                truth for which keys are accepted.
+            options: Extra `ExtractOptions` fields — `callback_url`,
+                `bypass_cache`, `retain_hours`, `result_retain_hours`
+                (0-168, defaults to `retain_hours`), `storage_destination_id`.
+                The server is the source of truth for which keys are
+                accepted; see the API docs at /docs/data-retention for
+                the retention-related ones.
             idempotency_key: Stripe-style key. Retrying the same key
                 with the same customer returns the original job — no
                 re-extraction, no re-billing.
