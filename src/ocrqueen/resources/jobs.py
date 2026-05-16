@@ -112,6 +112,31 @@ class JobsResource:
         response = self._http.request("DELETE", f"/v1/jobs/{job_id}")
         return _job_from_response(response.json())
 
+    # ── purge (GDPR erasure) ─────────────────────────────────────
+    def purge(self, job_id: str) -> None:
+        """Hard-erase a job's source bytes + extracted content.
+
+        Deletes the source file from object storage and clears the
+        extracted result + request options from the database. The job
+        row remains as a billing tombstone (id, customer, page count,
+        timestamps) so usage reports stay accurate.
+
+        Requires the `jobs:write` scope on the API key. This is
+        deliberately separate from `extract:write` so you can issue
+        read-only keys to dashboards / pipelines that fetch results
+        without being able to delete them.
+
+        Idempotent — calling on an already-purged job is a no-op.
+
+        Raises:
+            NotFoundError: job doesn't exist (or belongs to a different
+                customer — the server returns 404 either way).
+            AuthenticationError: key is missing the `jobs:write` scope.
+        """
+        if not job_id:
+            raise ValidationError("job_id is required")
+        self._http.request("POST", f"/v1/jobs/{job_id}/purge")
+
     # ── wait (the ergonomic killer feature) ──────────────────────
     def wait(
         self,

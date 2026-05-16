@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-16
+
+### Added
+- `client.jobs.purge(job_id)` — hard-erases a job's source bytes from
+  object storage and clears the extracted result from the database. The
+  job row remains as a billing tombstone (id, customer, page count,
+  timestamps). Requires the new `jobs:write` scope on the API key;
+  deliberately separate from `extract:write` so read-only keys can fetch
+  results without being able to delete them. Idempotent — calling on an
+  already-purged job is a no-op. Pairs with the new
+  `result_retain_hours` extraction option (server-side; pass through
+  `options=`) so customers can control how long extracted content
+  lives on OCRQueen's servers after a job completes. Full contract:
+  <https://ocrqueen.com/docs/data-retention>.
+- README now documents every supported file type — **PDF**, **PPTX**,
+  **PPT**, **PNG**, **JPEG**, **WebP**, **HEIC**, **HEIF**. The API has
+  accepted all of these since v0.1.0 but only PDF was advertised, costing
+  organic discoverability on PyPI search and Google.
+- README "Other file types" snippet block with one example per
+  category, plus an `profile="advanced"` example.
+
+### Fixed
+- README quickstart called `job.wait()` and `result.markdown` — neither
+  exists. Corrected to `client.jobs.wait(job)` and
+  `result.result["markdown"]`. The broken snippet was the first thing a
+  new user saw on PyPI; switching to the working form unblocks fresh
+  installs.
+
 ## [0.1.0] — 2026-05-15
 
 First usable release. The v0.0.0 placeholder was a name claim only.

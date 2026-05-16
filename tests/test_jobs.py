@@ -114,6 +114,23 @@ def test_cancel_returns_updated_job() -> None:
         assert job.status == "cancelled"
 
 
+# ── purge ───────────────────────────────────────────────────────────
+
+
+def test_purge_hits_post_endpoint() -> None:
+    with respx.mock(base_url=_API_URL) as mock:
+        route = mock.post("/v1/jobs/job_y/purge").mock(return_value=httpx.Response(204))
+        with OCRQueen(api_key=_VALID_KEY) as client:
+            assert client.jobs.purge("job_y") is None
+        assert route.called
+
+
+def test_purge_empty_id_rejected() -> None:
+    with OCRQueen(api_key=_VALID_KEY) as client:
+        with pytest.raises(ValidationError):
+            client.jobs.purge("")
+
+
 # ── wait ─────────────────────────────────────────────────────────────
 
 
