@@ -11,13 +11,33 @@ build-backend = "hatchling.build"
 # ── Project metadata ──────────────────────────────────────────────────
 [project]
 name = "ocrqueen"
-version = "0.2.0"
+version = "0.2.1"
 description = "Official Python SDK for the OCRQueen document extraction API"
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "OCRQueen", email = "support@ocrqueen.com" }]
 maintainers = [{ name = "OCRQueen", email = "support@ocrqueen.com" }]
-keywords = ["ocr", "pdf", "document-ai", "extraction", "sdk", "ocrqueen"]
+keywords = [
+  "ocrqueen",
+  "ocr",
+  "ocr-api",
+  "document-extraction",
+  "document-ai",
+  "pdf",
+  "pdf-extraction",
+  "pdf-to-json",
+  "pdf-to-markdown",
+  "pptx",
+  "pptx-extraction",
+  "powerpoint",
+  "presentation-extraction",
+  "image-extraction",
+  "image-ocr",
+  "heic",
+  "structured-extraction",
+  "rag",
+  "sdk",
+]
 requires-python = ">=3.10"
 classifiers = [
   "Development Status :: 3 - Alpha",
