@@ -55,10 +55,40 @@ job = client.extract.create(file=open("invoice.png", "rb"))
 # Deeper extraction profile — diagrams, image alt-text, OCR on
 # embedded text
 job = client.extract.create(
-    file=open("patent.pdf", "rb"),
+    file=open("paper.pdf", "rb"),
     profile="advanced",
 )
 ```
+
+### Patent extraction (`domain="patent"`)
+
+Route a PPTX or PDF through the patent-specific pipeline: region
+classification (cover / abstract / drawings / claims / references),
+Gemini cover parser, LibreOffice rasterisation for EMF/WMF figures,
+cross-figure numeral resolution, and an honest per-stage
+`faithfulness_score`. Billed flat at $0.05/page regardless of profile.
+
+```python
+job = client.extract.create(
+    file=open("invention-disclosure.pptx", "rb"),
+    options={"domain": "patent"},
+)
+result = client.jobs.wait(job).result        # response shape changes — discriminator is `domain`
+patent = result                              # full PatentExtractionResponse
+print(patent["source"]["input_kind"])        # "invention_disclosure" | "published_patent" | "unknown"
+print(patent["extraction"]["faithfulness_score"])
+
+# Figures carry a stable proxy URL — never expires until the underlying
+# object is purged by your retention window. fetch_image() handles the
+# 302 → signed-storage dance for you and returns raw bytes.
+for fig in patent["drawings"]:
+    bytes_ = client.jobs.fetch_image(fig["image_url"])
+    open(f"{fig['figure_number'].replace(' ', '_')}.png", "wb").write(bytes_)
+```
+
+The same `fetch_image()` helper works for general-domain `ImageBlock`
+URLs (`pages[].blocks[].url`) — useful for snapshotting all figures
+from a job into your own pipeline.
 
 ## Documentation
 
