@@ -14,7 +14,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from ocrqueen._errors import APITimeoutError, ValidationError
+from ocrqueen._errors import (
+    APIConnectionError,
+    APIError,
+    APITimeoutError,
+    ValidationError,
+)
 from ocrqueen._http import HttpClient
 from ocrqueen.resources.extract import ExtractJob
 
@@ -112,6 +117,63 @@ class JobsResource:
         response = self._http.request("DELETE", f"/v1/jobs/{job_id}")
         return _job_from_response(response.json())
 
+    # ── fetch_image (proxy URLs from patent figures + image blocks) ──
+    def fetch_image(self, url_or_path: str) -> bytes:
+        """Download an image referenced from an extraction result.
+
+        The API returns stable proxy paths on patent figures
+        (`drawings[i].image_url`) and general image blocks
+        (`pages[].blocks[].url`) of the form
+        ``/v1/jobs/{job_id}/{figures|images}/{id}``. Calling them
+        with the SDK's API key returns a `302` redirect to a
+        short-lived signed R2 URL; this helper performs the two-step
+        dance and returns the raw image bytes.
+
+        Pass either a full URL or just the path — both work:
+
+        >>> img = client.jobs.fetch_image(figure.image_url)
+        >>> img = client.jobs.fetch_image("/v1/jobs/abc/figures/0")
+
+        Raises:
+            ValidationError: empty / malformed URL.
+            NotFoundError: figure or image block doesn't exist.
+            APIError: unexpected status or non-redirect from the API.
+        """
+        if not url_or_path:
+            raise ValidationError("url_or_path is required")
+        path = _proxy_path(url_or_path)
+        # Hit our API with auth; the route returns a 302. Security
+        # invariant I5 keeps redirects unfollowed by default, so we
+        # extract the Location header ourselves.
+        response = self._http.request_raw(
+            "GET",
+            path,
+            expect_status=(200, 301, 302, 303, 307, 308),
+        )
+        if 200 <= response.status_code < 300:
+            return response.content
+        location = response.headers.get("location")
+        if not location:
+            raise ValidationError(
+                f"image proxy returned {response.status_code} without a Location header"
+            )
+        # The Location points at R2 (or another presigned host) — fetch
+        # the bytes directly without sending our API key.
+        import httpx as _httpx
+
+        try:
+            r2 = _httpx.get(location, timeout=60.0, follow_redirects=False)
+        except _httpx.TimeoutException as exc:
+            raise APITimeoutError(f"image fetch timed out: {exc}") from exc
+        except _httpx.TransportError as exc:
+            raise APIConnectionError(f"image fetch failed: {exc}") from exc
+        if r2.status_code != 200:
+            raise APIError(
+                f"image storage returned {r2.status_code}",
+                status_code=r2.status_code,
+            )
+        return r2.content
+
     # ── purge (GDPR erasure) ─────────────────────────────────────
     def purge(self, job_id: str) -> None:
         """Hard-erase a job's source bytes + extracted content.
@@ -198,6 +260,26 @@ class JobsResource:
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
+
+def _proxy_path(url_or_path: str) -> str:
+    """Return the path portion of an OCRQueen image-proxy URL.
+
+    Customers can pass either ``/v1/jobs/{id}/figures/0`` or the full
+    ``https://api.ocrqueen.com/v1/jobs/{id}/figures/0`` — we don't make
+    them strip the origin themselves.
+    """
+    from urllib.parse import urlparse as _urlparse
+
+    if url_or_path.startswith("/"):
+        return url_or_path
+    parsed = _urlparse(url_or_path)
+    if not parsed.scheme:
+        return "/" + url_or_path.lstrip("/")
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    return path
 
 
 def _job_from_response(body: Any) -> ExtractJob:

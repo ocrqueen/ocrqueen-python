@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-20
+
+### Added
+- `client.jobs.fetch_image(url_or_path)` — download bytes from the new
+  image-proxy URLs that the API emits on patent figures
+  (`drawings[i].image_url`) and general image blocks
+  (`pages[].blocks[].url`). Performs the two-step auth → 302 → R2 dance
+  so callers don't have to follow redirects themselves.
+
+### Note
+- `cost_usd` on extraction responses now reflects the customer billing
+  rate (what the wallet debits), not the internal Gemini token cost.
+  No SDK surface change.
+- Patent extractions (`domain="patent"`) are now priced at $0.05/page
+  (was $0.10/page) to align with the Advanced tier description.
+
 ## [0.2.1] — 2026-05-16
 
 Metadata-only release. No runtime or API behaviour change.

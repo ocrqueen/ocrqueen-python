@@ -239,6 +239,32 @@ class HttpClient:
             self._raise_for_status(response)
         return response
 
+    def request_raw(
+        self,
+        method: str,
+        path: str,
+        *,
+        expect_status: tuple[int, ...],
+    ) -> httpx.Response:
+        """Like `request()` but accepts a configurable set of OK statuses.
+
+        Used by `JobsResource.fetch_image()` to receive a `302` redirect
+        from the image-proxy routes without it being raised as an error.
+        Statuses outside `expect_status` go through the normal
+        error-mapping path so a `404`/`401` still becomes
+        `NotFoundError`/`AuthenticationError` etc.
+        """
+        headers = self._headers()
+        try:
+            response = self._client.request(method, path, headers=headers)
+        except httpx.TimeoutException as exc:
+            raise APITimeoutError(f"Request timed out: {exc}") from exc
+        except httpx.TransportError as exc:
+            raise APIConnectionError(f"Connection error: {exc}") from exc
+        if response.status_code not in expect_status:
+            self._raise_for_status(response)
+        return response
+
     def _headers(self) -> dict[str, str]:
         """Build per-request headers, including auth.
 
