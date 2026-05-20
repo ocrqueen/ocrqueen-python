@@ -261,12 +261,8 @@ def test_fetch_image_follows_302_to_r2() -> None:
     r2_url = "https://r2.example.com/customers/x/jobs/job_abc/figures/0.jpg?signed=true"
     img_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
-    with respx.mock(base_url=_API_URL) as mock, respx.mock(
-        assert_all_called=False
-    ) as outer:
-        mock.get(proxy_path).mock(
-            return_value=httpx.Response(302, headers={"location": r2_url})
-        )
+    with respx.mock(base_url=_API_URL) as mock, respx.mock(assert_all_called=False) as outer:
+        mock.get(proxy_path).mock(return_value=httpx.Response(302, headers={"location": r2_url}))
         outer.get(r2_url).mock(return_value=httpx.Response(200, content=img_bytes))
         with OCRQueen(api_key=_VALID_KEY) as client:
             got = client.jobs.fetch_image(proxy_path)
@@ -279,9 +275,7 @@ def test_fetch_image_accepts_absolute_url() -> None:
     r2_url = "https://r2.example.com/object.jpg?signed=true"
     img_bytes = b"\xff\xd8\xff" + b"\x00" * 32
 
-    with respx.mock(base_url=_API_URL) as mock, respx.mock(
-        assert_all_called=False
-    ) as outer:
+    with respx.mock(base_url=_API_URL) as mock, respx.mock(assert_all_called=False) as outer:
         mock.get("/v1/jobs/job_abc/images/blk_1").mock(
             return_value=httpx.Response(302, headers={"location": r2_url})
         )
