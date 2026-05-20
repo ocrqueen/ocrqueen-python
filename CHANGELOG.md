@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-05-20
+
+Docs-only release. Refreshes the PyPI landing-page README with
+patent-extraction examples + `fetch_image` usage. No runtime change.
+
 ## [0.3.0] — 2026-05-20
 
 ### Added
