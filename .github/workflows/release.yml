@@ -131,7 +131,7 @@ jobs:
           path: dist/
 
       # pypa/gh-action-pypi-publish@v1.12.4 — pinned by SHA, official PyPA action
-      - uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc
+      - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b
         with:
           packages-dir: dist/
           # Skip if the version is already on PyPI — turns "tag pushed
