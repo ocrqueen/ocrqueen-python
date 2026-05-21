@@ -28,6 +28,8 @@ jobs:
       security-events: write
       # Needed to read the source.
       contents: read
+      # Needed by CodeQL pr-diff-range to scope alerts to changed lines.
+      pull-requests: read
     strategy:
       fail-fast: false
       matrix:
