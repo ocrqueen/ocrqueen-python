@@ -46,7 +46,7 @@ jobs:
           persist-credentials: false
 
       # github/codeql-action/init@v3.27.0
-      - uses: github/codeql-action/init@4f3212b61783c3c68e8309a0f18a699764811cda
+      - uses: github/codeql-action/init@9e0d7b8d25671d64c341c19c0152d693099fb5ba
         with:
           languages: ${{ matrix.language }}
           # `security-and-quality` is one level above the default
@@ -56,6 +56,6 @@ jobs:
           queries: security-and-quality
 
       # github/codeql-action/analyze@v3.27.0
-      - uses: github/codeql-action/analyze@4f3212b61783c3c68e8309a0f18a699764811cda
+      - uses: github/codeql-action/analyze@9e0d7b8d25671d64c341c19c0152d693099fb5ba
         with:
           category: "/language:${{ matrix.language }}"
