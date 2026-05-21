@@ -28,6 +28,13 @@ jobs:
       security-events: write
       # Needed to read the source.
       contents: read
+      # Needed by CodeQL pr-diff-range to scope alerts to changed lines.
+      pull-requests: read
+    env:
+      # Disable diff-informed mode — the action's pr-diff-range extension
+      # is generating malformed "undefined" rows on PRs (upstream bug in
+      # github/codeql-action@4f3212b). Re-enable when fixed upstream.
+      CODEQL_ACTION_DIFF_INFORMED_QUERIES: "false"
     strategy:
       fail-fast: false
       matrix:
