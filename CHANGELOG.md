@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-21
+
+Fixes three SDK ↔ API contract bugs discovered during an end-to-end
+smoke test against production. All three were silent failures — the
+SDK didn't crash, it just returned empty / wrong fields.
+
+### Fixed
+
+- `ExtractJob.id` was always `""` because the SDK read `body["id"]`
+  but the API returns `body["job_id"]`. Now reads `job_id`.
+- `ExtractJob.result` was always `None`. The API returns the
+  extraction under `document` (general domain) or `patent` (patent
+  domain), not `result`. New explicit fields: `document`, `patent`,
+  `markdown`, `cache_hit`, `domain`. The `result` property is kept
+  as a legacy alias that dispatches on `domain`.
+- `error_code` / `error_message` were read from flat keys but the
+  API nests them under `error: {code, message}`. Now reads the
+  nested shape.
+- File uploads of `.pptx` (and other types where `mimetypes` returns
+  octet-stream) were rejected by the server with `UNSUPPORTED_FILE_TYPE`.
+  The SDK now ships its own MIME table and attaches an explicit
+  `Content-Type` to the multipart part for `.pdf`, `.png`, `.jpg`,
+  `.jpeg`, `.webp`, `.heic`, `.heif`, `.pptx`.
+
+### Note for upgraders
+
+The shape of `ExtractJob` changed: `result` is still readable (now
+a property), but if you were destructuring `.result` directly into
+a dict you may want to switch to `.document` / `.patent` so the
+intent is explicit. `.raw` continues to hold the full server body
+for advanced callers.
+
 ## [0.4.0] — 2026-05-21
 
 Additive bump for Slice 8 + 9 — Figure Pipeline. SDK consumers gain

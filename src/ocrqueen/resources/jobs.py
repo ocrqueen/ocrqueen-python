@@ -21,7 +21,7 @@ from ocrqueen._errors import (
     ValidationError,
 )
 from ocrqueen._http import HttpClient
-from ocrqueen.resources.extract import ExtractJob
+from ocrqueen.resources.extract import ExtractJob, _job_from_body
 
 JobStatus = Literal["queued", "processing", "completed", "failed", "cancelled"]
 
@@ -283,14 +283,9 @@ def _proxy_path(url_or_path: str) -> str:
 
 
 def _job_from_response(body: Any) -> ExtractJob:
-    """Build an `ExtractJob` dataclass from an API response object."""
-    if not isinstance(body, dict):
-        raise ValidationError("unexpected job response shape")
-    return ExtractJob(
-        id=str(body.get("id", "")),
-        status=str(body.get("status", "")),
-        result=body.get("result"),
-        error_code=body.get("error_code"),
-        error_message=body.get("error_message"),
-        raw=body,
-    )
+    """Build an `ExtractJob` from an API response object.
+
+    Thin wrapper around `extract._job_from_body` so every job-returning
+    endpoint maps the same wire fields.
+    """
+    return _job_from_body(body)

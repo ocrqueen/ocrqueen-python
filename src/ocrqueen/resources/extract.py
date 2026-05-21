@@ -13,13 +13,16 @@ Design notes:
   - `idempotency_key` is plumbed through to the SDK-level header so
     customer retries are safe.
 
-Return value: a small dataclass with just the fields most callers need
-(`id`, `status`, `result`). The full server response is preserved as
-`raw` so advanced callers can dig in without us locking the schema.
+Return value: a small dataclass that mirrors the API's `JobResponse`
+contract — `id`, `status`, `domain`, and the populated extraction
+field (`document` for general, `patent` for patent), plus `markdown`
+and `cache_hit`. The full server response is preserved as `raw` so
+advanced callers can dig in without us locking the schema.
 """
 
 from __future__ import annotations
 
+import mimetypes
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,12 +43,18 @@ ExtractionProfile = Literal["standard", "advanced"]
 
 @dataclass
 class ExtractJob:
-    """Result of `client.extract.create(...)`.
+    """Result of `client.extract.create(...)` / `client.jobs.get(...)`.
 
-    For async (default) jobs, only `id` + `status="queued"` are set
-    initially; `result` populates after polling. For sync jobs that
-    completed in-band (`status="completed"`), `result` is already
-    populated.
+    Mirrors the API's `JobResponse` schema. For async (default) jobs,
+    only `id` + `status="queued"` are set initially; `document` /
+    `patent` / `markdown` populate after polling. For jobs the server
+    finished in-band (`status="completed"`), the result fields are
+    already populated.
+
+    Branch on `domain` to pick the right extraction field:
+      - `domain == "general"` → use `document` (also exposed via
+        the `result` property as a legacy alias)
+      - `domain == "patent"`  → use `patent`
 
     `raw` is the full server response — kept for advanced callers who
     need a field the dataclass doesn't surface. We use `field(repr=False)`
@@ -54,10 +63,53 @@ class ExtractJob:
 
     id: str
     status: str
-    result: dict[str, Any] | None = None
+    domain: str = "general"
+    document: dict[str, Any] | None = None
+    patent: dict[str, Any] | None = None
+    markdown: str | None = None
+    cache_hit: bool = False
     error_code: str | None = None
     error_message: str | None = None
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def result(self) -> dict[str, Any] | None:
+        """Legacy alias — returns whichever extraction field is populated.
+
+        Returns `document` for general-domain jobs, `patent` for
+        patent-domain jobs. Prefer reading `.document` / `.patent`
+        directly so the domain dispatch is explicit at the call site.
+        """
+        return self.patent if self.domain == "patent" else self.document
+
+
+def _job_from_body(body: Any) -> ExtractJob:
+    """Build an `ExtractJob` from a server response body.
+
+    Centralised so every endpoint that returns a `JobResponse` shape
+    (`POST /v1/extract`, `GET /v1/jobs/{id}`, `GET /v1/jobs`,
+    `DELETE /v1/jobs/{id}`) maps the wire fields the same way. The
+    wire format uses `job_id` and a nested `error: {code, message}`;
+    we surface those as `.id` and `.error_code / .error_message` for
+    Pythonic ergonomics while preserving the raw body for advanced use.
+    """
+    if not isinstance(body, dict):
+        raise ValidationError("unexpected job response shape")
+    error = body.get("error") or {}
+    if not isinstance(error, dict):
+        error = {}
+    return ExtractJob(
+        id=str(body.get("job_id") or ""),
+        status=str(body.get("status") or ""),
+        domain=str(body.get("domain") or "general"),
+        document=body.get("document"),
+        patent=body.get("patent"),
+        markdown=body.get("markdown"),
+        cache_hit=bool(body.get("cache_hit", False)),
+        error_code=error.get("code"),
+        error_message=error.get("message"),
+        raw=body,
+    )
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -66,6 +118,35 @@ class ExtractJob:
 # Max upload — match the server's hard cap so we fail fast locally.
 # Keep this in sync with `MAX_FILE_SIZE_BYTES` in the API.
 _MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
+
+# Map common upload extensions to their canonical MIME types. We ship
+# our own table because `mimetypes` on some platforms doesn't know
+# `.pptx` / `.heic` and falls back to `application/octet-stream`, which
+# the server rejects with `UNSUPPORTED_FILE_TYPE`.
+_MIME_BY_EXT: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+def _guess_mime(filename: str) -> str:
+    """Return the MIME type for `filename`, defaulting to octet-stream.
+
+    Prefers the SDK's own table so the supported-file matrix stays
+    explicit; falls back to `mimetypes` for anything outside it.
+    """
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in _MIME_BY_EXT:
+        return _MIME_BY_EXT[ext]
+    guess, _ = mimetypes.guess_type(filename)
+    return guess or "application/octet-stream"
 
 
 def _read_file(file: FileInput) -> tuple[str, bytes]:
@@ -195,7 +276,10 @@ class ExtractResource:
         # (matches the FastAPI route signature).
         import json
 
-        files = {"file": (filename, body)}
+        # Explicit MIME type on the multipart part. Without this httpx
+        # falls back to `application/octet-stream`, which the server
+        # rejects with `UNSUPPORTED_FILE_TYPE`.
+        files = {"file": (filename, body, _guess_mime(filename))}
         data = {"options": json.dumps(merged_options)}
 
         response = self._http.request(
@@ -205,16 +289,4 @@ class ExtractResource:
             data=data,
             idempotency_key=idempotency_key,
         )
-        body_json = response.json()
-        if not isinstance(body_json, dict):
-            # Defensive — the server always returns a JSON object here.
-            raise ValidationError("unexpected response shape from /v1/extract")
-
-        return ExtractJob(
-            id=str(body_json.get("id", "")),
-            status=str(body_json.get("status", "")),
-            result=body_json.get("result"),
-            error_code=body_json.get("error_code"),
-            error_message=body_json.get("error_message"),
-            raw=body_json,
-        )
+        return _job_from_body(response.json())

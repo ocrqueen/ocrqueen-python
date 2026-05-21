@@ -29,9 +29,10 @@ def test_get_returns_job() -> None:
             return_value=httpx.Response(
                 200,
                 json={
-                    "id": "job_abc",
+                    "job_id": "job_abc",
                     "status": "completed",
-                    "result": {"source": {"page_count": 3}},
+                    "domain": "general",
+                    "document": {"source": {"page_count": 3}},
                 },
             )
         )
@@ -39,7 +40,10 @@ def test_get_returns_job() -> None:
             job = client.jobs.get("job_abc")
         assert job.id == "job_abc"
         assert job.status == "completed"
-        assert isinstance(job.result, dict)
+        assert job.domain == "general"
+        assert isinstance(job.document, dict)
+        # Legacy alias also works.
+        assert job.result is job.document
 
 
 def test_get_404_raises_notfound() -> None:
@@ -66,8 +70,8 @@ def test_list_returns_jobs_and_cursor() -> None:
                 200,
                 json={
                     "jobs": [
-                        {"id": "job_1", "status": "completed"},
-                        {"id": "job_2", "status": "queued"},
+                        {"job_id": "job_1", "status": "completed"},
+                        {"job_id": "job_2", "status": "queued"},
                     ],
                     "next_cursor": "abc",
                 },
@@ -107,7 +111,7 @@ def test_list_limit_out_of_range_rejected() -> None:
 def test_cancel_returns_updated_job() -> None:
     with respx.mock(base_url=_API_URL) as mock:
         mock.delete("/v1/jobs/job_x").mock(
-            return_value=httpx.Response(200, json={"id": "job_x", "status": "cancelled"})
+            return_value=httpx.Response(200, json={"job_id": "job_x", "status": "cancelled"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
             job = client.jobs.cancel("job_x")
@@ -138,7 +142,7 @@ def test_wait_returns_immediately_when_terminal() -> None:
     """If the first poll lands on a terminal status, no sleeping happens."""
     with respx.mock(base_url=_API_URL) as mock:
         mock.get("/v1/jobs/job_done").mock(
-            return_value=httpx.Response(200, json={"id": "job_done", "status": "completed"})
+            return_value=httpx.Response(200, json={"job_id": "job_done", "status": "completed"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
             job = client.jobs.wait("job_done")
@@ -242,7 +246,7 @@ def test_jobs_list_handles_garbage_items() -> None:
         mock.get("/v1/jobs").mock(
             return_value=httpx.Response(
                 200,
-                json={"jobs": [{"id": "job_1", "status": "completed"}, "garbage"]},
+                json={"jobs": [{"job_id": "job_1", "status": "completed"}, "garbage"]},
             )
         )
         with OCRQueen(api_key=_VALID_KEY) as client:

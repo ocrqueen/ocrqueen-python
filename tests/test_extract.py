@@ -98,7 +98,7 @@ def test_read_file_rewinds_seekable_handle() -> None:
 def test_create_sends_multipart_with_options() -> None:
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
-            return_value=httpx.Response(202, json={"id": "job_abc", "status": "queued"})
+            return_value=httpx.Response(202, json={"job_id": "job_abc", "status": "queued"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
             job = client.extract.create(file=b"%PDF-1.4", profile="advanced")
@@ -118,7 +118,7 @@ def test_create_sends_multipart_with_options() -> None:
 def test_create_passes_idempotency_key() -> None:
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
-            return_value=httpx.Response(202, json={"id": "job_abc", "status": "queued"})
+            return_value=httpx.Response(202, json={"job_id": "job_abc", "status": "queued"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
             client.extract.create(file=b"%PDF-1.4", idempotency_key="my-key-123")
@@ -131,7 +131,7 @@ def test_create_explicit_options_wins_over_profile_arg() -> None:
     wins. Document the precedence by testing it."""
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
-            return_value=httpx.Response(202, json={"id": "job_abc", "status": "queued"})
+            return_value=httpx.Response(202, json={"job_id": "job_abc", "status": "queued"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
             client.extract.create(
