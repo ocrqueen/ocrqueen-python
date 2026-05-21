@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-21
+
+Additive bump for Slice 8 + 9 — Figure Pipeline. SDK consumers gain
+forward-compat for substantially-redesigned figure extraction on
+`domain="patent"` responses. No SDK behavior change; the SDK
+remains a thin HTTP client returning the API's JSON contract verbatim.
+
+### Added (via OpenAPI re-dump)
+
+On `PatentFigure`:
+- `source_bbox`, `shape_cluster_inner_bbox` — per-shape and tighter-inner
+  bbox for the new per-shape crop pipeline
+- `parent_figure` — sub-figure linkage ("FIG. 4A" → "FIG. 4")
+- `is_prior_art` — deterministic PRIOR ART stamp detection
+- `extraction_expectation` — `Literal["LABELED_BLOCKS_ONLY",
+  "WITH_CALLOUTS", "WITH_TOPOLOGY", "FREE_FORM"] | None`. Drives
+  per-figure numerals-skip and faithfulness scoring on the API side.
+
+On `ReferenceNumeral`: `confidence` (`high|medium|low`).
+
+On `FlowchartNode` + `FlowchartEdge`: `confidence` (per-element).
+
+On `FlowchartTopology`: `source` (`deterministic|vision`) —
+distinguishes \$0-cost connector-graph-derived topology from
+Vision-derived.
+
+Schema-wide: new `text_source = "pptx_shape_cluster"` on general
+document `ImageBlock`s synthesised from native PPTX shape clusters
+(Slice 9 discovery layer).
+
+10 new `PatentWarningCode` values covering figure / topology /
+numerals / prior-art failure modes (see API CHANGELOG for the full
+list).
+
+### Customer impact
+
+On the locked customer reference fixture (`patent_sample_US11847293.pptx`),
+real-figure recall went from 0/4 to 4/4. FIG. 2 now ships as a
+25-node, 24-edge, 4-swimlane Mermaid flowchart via the API's
+deterministic-first topology path.
+
 ## [0.3.2] — 2026-05-20
 
 Additive enum bump for Slice 12 — Patent Claims Parser. No SDK
