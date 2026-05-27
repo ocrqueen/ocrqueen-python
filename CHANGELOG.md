@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-27
+
+Tracks the V3 cutover on the API: one unified extraction pipeline, one
+flat per-page rate, no profile/domain axis.
+
+### Removed (breaking)
+
+- `profile=` kwarg on `client.extract.create(...)` — the API no longer
+  accepts `extraction_profile`. There is one pipeline; every document
+  gets the full extraction (text, tables, math, code, diagrams as
+  graphs, reference linking, bounding boxes).
+- `ExtractionProfile` type alias.
+- `ExtractJob.domain` and `ExtractJob.patent` fields — the response
+  shape collapses to `document` + `markdown` for every job. The
+  separate patent-domain response is gone.
+- The `ExtractJob.result` property is retained as a thin alias for
+  `.document` so existing call sites don't break.
+
+### Migration
+
+```python
+# before (v0.5.x)
+job = client.extract.create(file=f, profile="advanced")
+
+# after (v0.6.x) — drop the kwarg, you get the same pipeline either way
+job = client.extract.create(file=f)
+```
+
+If you were passing `extraction_profile` or `domain` inside `options=`,
+remove those keys — the server now rejects them.
+
 ## [0.5.0] — 2026-05-21
 
 Fixes three SDK ↔ API contract bugs discovered during an end-to-end

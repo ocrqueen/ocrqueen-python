@@ -14,10 +14,9 @@ Design notes:
     customer retries are safe.
 
 Return value: a small dataclass that mirrors the API's `JobResponse`
-contract — `id`, `status`, `domain`, and the populated extraction
-field (`document` for general, `patent` for patent), plus `markdown`
-and `cache_hit`. The full server response is preserved as `raw` so
-advanced callers can dig in without us locking the schema.
+contract — `id`, `status`, `document`, `markdown`, `cache_hit`. The
+full server response is preserved as `raw` so advanced callers can dig
+in without us locking the schema.
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ import mimetypes
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, Any, Literal
+from typing import IO, Any
 
 from ocrqueen._errors import ValidationError
 from ocrqueen._http import HttpClient
@@ -34,8 +33,6 @@ from ocrqueen._http import HttpClient
 # What an OCRQueen file upload looks like in practice. We accept any of
 # these so customers can pass the most natural thing for their context.
 FileInput = bytes | str | Path | IO[bytes]
-
-ExtractionProfile = Literal["standard", "advanced"]
 
 
 # ── Response shapes ──────────────────────────────────────────────────
@@ -47,14 +44,9 @@ class ExtractJob:
 
     Mirrors the API's `JobResponse` schema. For async (default) jobs,
     only `id` + `status="queued"` are set initially; `document` /
-    `patent` / `markdown` populate after polling. For jobs the server
-    finished in-band (`status="completed"`), the result fields are
-    already populated.
-
-    Branch on `domain` to pick the right extraction field:
-      - `domain == "general"` → use `document` (also exposed via
-        the `result` property as a legacy alias)
-      - `domain == "patent"`  → use `patent`
+    `markdown` populate after polling. For jobs the server finished
+    in-band (`status="completed"`), the result fields are already
+    populated.
 
     `raw` is the full server response — kept for advanced callers who
     need a field the dataclass doesn't surface. We use `field(repr=False)`
@@ -63,9 +55,7 @@ class ExtractJob:
 
     id: str
     status: str
-    domain: str = "general"
     document: dict[str, Any] | None = None
-    patent: dict[str, Any] | None = None
     markdown: str | None = None
     cache_hit: bool = False
     error_code: str | None = None
@@ -74,13 +64,8 @@ class ExtractJob:
 
     @property
     def result(self) -> dict[str, Any] | None:
-        """Legacy alias — returns whichever extraction field is populated.
-
-        Returns `document` for general-domain jobs, `patent` for
-        patent-domain jobs. Prefer reading `.document` / `.patent`
-        directly so the domain dispatch is explicit at the call site.
-        """
-        return self.patent if self.domain == "patent" else self.document
+        """Legacy alias for `.document`."""
+        return self.document
 
 
 def _job_from_body(body: Any) -> ExtractJob:
@@ -101,9 +86,7 @@ def _job_from_body(body: Any) -> ExtractJob:
     return ExtractJob(
         id=str(body.get("job_id") or ""),
         status=str(body.get("status") or ""),
-        domain=str(body.get("domain") or "general"),
         document=body.get("document"),
-        patent=body.get("patent"),
         markdown=body.get("markdown"),
         cache_hit=bool(body.get("cache_hit", False)),
         error_code=error.get("code"),
@@ -227,7 +210,6 @@ class ExtractResource:
         self,
         *,
         file: FileInput,
-        profile: ExtractionProfile = "standard",
         options: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
     ) -> ExtractJob:
@@ -237,10 +219,7 @@ class ExtractResource:
             file: Bytes, a path string/Path, or a binary file-like
                 object. Must be a supported MIME type (PDF, PNG, JPEG,
                 WebP, HEIC, PPTX) — the server rejects others with 400.
-            profile: `"standard"` (text + layout, $0.005/page) or
-                `"advanced"` (adds diagram extraction + image
-                enhancement, $0.015/page).
-            options: Extra `ExtractOptions` fields — `callback_url`,
+            options: `ExtractOptions` fields — `callback_url`,
                 `bypass_cache`, `retain_hours`, `result_retain_hours`
                 (0-168, defaults to `retain_hours`), `storage_destination_id`.
                 The server is the source of truth for which keys are
@@ -253,7 +232,7 @@ class ExtractResource:
         Returns:
             `ExtractJob` with `id` (always) and `status`. For an
             async (default) submission `status="queued"`; poll with
-            `client.jobs.get(job.id)` (once that resource ships).
+            `client.jobs.get(job.id)`.
 
         Raises:
             ValidationError: file is missing / too big / wrong kind.
@@ -263,12 +242,6 @@ class ExtractResource:
             InsufficientBalanceError: see `_errors`.
         """
         filename, body = _read_file(file)
-
-        # Merge the simple `profile` arg into the options dict so callers
-        # can use either spelling. Explicit `options["extraction_profile"]`
-        # wins if both are passed — the server validates the final shape.
-        merged_options: dict[str, Any] = dict(options or {})
-        merged_options.setdefault("extraction_profile", profile)
 
         # multipart form: `file` plus a JSON-encoded `options` field.
         # We encode `options` ourselves rather than relying on httpx's
@@ -280,7 +253,9 @@ class ExtractResource:
         # falls back to `application/octet-stream`, which the server
         # rejects with `UNSUPPORTED_FILE_TYPE`.
         files = {"file": (filename, body, _guess_mime(filename))}
-        data = {"options": json.dumps(merged_options)}
+        data: dict[str, str] = {}
+        if options:
+            data["options"] = json.dumps(options)
 
         response = self._http.request(
             "POST",

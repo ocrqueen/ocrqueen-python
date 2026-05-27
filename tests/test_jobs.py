@@ -40,7 +40,6 @@ def test_get_returns_job() -> None:
             job = client.jobs.get("job_abc")
         assert job.id == "job_abc"
         assert job.status == "completed"
-        assert job.domain == "general"
         assert isinstance(job.document, dict)
         # Legacy alias also works.
         assert job.result is job.document

@@ -95,22 +95,20 @@ def test_read_file_rewinds_seekable_handle() -> None:
 # ── create(): happy path ─────────────────────────────────────────────
 
 
-def test_create_sends_multipart_with_options() -> None:
+def test_create_sends_multipart_with_file() -> None:
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
             return_value=httpx.Response(202, json={"job_id": "job_abc", "status": "queued"})
         )
         with OCRQueen(api_key=_VALID_KEY) as client:
-            job = client.extract.create(file=b"%PDF-1.4", profile="advanced")
+            job = client.extract.create(file=b"%PDF-1.4")
         assert route.called
         req = route.calls.last.request
         # Multipart content-type
         assert "multipart/form-data" in req.headers["Content-Type"]
-        # Body contains both the file and the options field
+        # Body contains the file part
         body = req.content
         assert b'name="file"' in body
-        assert b'name="options"' in body
-        assert b'"extraction_profile": "advanced"' in body
         assert job.id == "job_abc"
         assert job.status == "queued"
 
@@ -125,10 +123,8 @@ def test_create_passes_idempotency_key() -> None:
         assert route.calls.last.request.headers["Idempotency-Key"] == "my-key-123"
 
 
-def test_create_explicit_options_wins_over_profile_arg() -> None:
-    """If the user passes both `profile="advanced"` and
-    `options={"extraction_profile": "standard"}`, the explicit dict
-    wins. Document the precedence by testing it."""
+def test_create_serializes_options_dict() -> None:
+    """An `options` dict is JSON-encoded and sent as a multipart field."""
     with respx.mock(base_url=_API_URL) as mock:
         route = mock.post("/v1/extract").mock(
             return_value=httpx.Response(202, json={"job_id": "job_abc", "status": "queued"})
@@ -136,11 +132,12 @@ def test_create_explicit_options_wins_over_profile_arg() -> None:
         with OCRQueen(api_key=_VALID_KEY) as client:
             client.extract.create(
                 file=b"%PDF-1.4",
-                profile="advanced",
-                options={"extraction_profile": "standard"},
+                options={"bypass_cache": True, "retain_hours": 48},
             )
         body = route.calls.last.request.content
-        assert b'"extraction_profile": "standard"' in body
+        assert b'name="options"' in body
+        assert b'"bypass_cache": true' in body
+        assert b'"retain_hours": 48' in body
 
 
 # ── create(): error paths ────────────────────────────────────────────
