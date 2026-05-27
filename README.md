@@ -21,8 +21,8 @@ Requires Python 3.10 or newer.
 | Images | **PNG**, **JPEG**, **WebP**, **HEIC** / **HEIF** (iPhone photos) |
 
 The API returns structured JSON + Markdown for every supported type —
-text, tables, images, and (with `extraction_profile="advanced"`)
-diagram graph extraction and image alt-text.
+text, tables, images, math, code, diagram graphs, and reference linking
+— from a single unified pipeline. No profiles, no toggles.
 
 ## Quickstart
 
@@ -34,8 +34,8 @@ client = OCRQueen(api_key="pk_...")
 with open("paper.pdf", "rb") as f:
     job = client.extract.create(file=f)
 
-result = client.jobs.wait(job)
-print(result.result["markdown"])
+final = client.jobs.wait(job)
+print(final.markdown)
 ```
 
 Get an API key from [dashboard.ocrqueen.com](https://ocrqueen.com/dashboard/keys).
@@ -51,44 +51,22 @@ job = client.extract.create(file=open("receipt.heic", "rb"))
 
 # Scanned document images
 job = client.extract.create(file=open("invoice.png", "rb"))
-
-# Deeper extraction profile — diagrams, image alt-text, OCR on
-# embedded text
-job = client.extract.create(
-    file=open("paper.pdf", "rb"),
-    profile="advanced",
-)
 ```
 
-### Patent extraction (`domain="patent"`)
+### Fetching extracted images
 
-Route a PPTX or PDF through the patent-specific pipeline: region
-classification (cover / abstract / drawings / claims / references),
-Gemini cover parser, LibreOffice rasterisation for EMF/WMF figures,
-cross-figure numeral resolution, and an honest per-stage
-`faithfulness_score`. Billed flat at $0.05/page regardless of profile.
+Image blocks carry a stable proxy URL — it never expires until the
+underlying object is purged by your retention window. `fetch_image()`
+handles the 302 → signed-storage dance for you and returns raw bytes.
 
 ```python
-job = client.extract.create(
-    file=open("invention-disclosure.pptx", "rb"),
-    options={"domain": "patent"},
-)
-result = client.jobs.wait(job).result        # response shape changes — discriminator is `domain`
-patent = result                              # full PatentExtractionResponse
-print(patent["source"]["input_kind"])        # "invention_disclosure" | "published_patent" | "unknown"
-print(patent["extraction"]["faithfulness_score"])
-
-# Figures carry a stable proxy URL — never expires until the underlying
-# object is purged by your retention window. fetch_image() handles the
-# 302 → signed-storage dance for you and returns raw bytes.
-for fig in patent["drawings"]:
-    bytes_ = client.jobs.fetch_image(fig["image_url"])
-    open(f"{fig['figure_number'].replace(' ', '_')}.png", "wb").write(bytes_)
+final = client.jobs.wait(job)
+for page in final.document["pages"]:
+    for block in page["blocks"]:
+        if block.get("kind") == "image":
+            bytes_ = client.jobs.fetch_image(block["url"])
+            open(f"{block['id']}.png", "wb").write(bytes_)
 ```
-
-The same `fetch_image()` helper works for general-domain `ImageBlock`
-URLs (`pages[].blocks[].url`) — useful for snapshotting all figures
-from a job into your own pipeline.
 
 ## Documentation
 
